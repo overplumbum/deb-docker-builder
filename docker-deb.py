@@ -80,7 +80,7 @@ class Tool(object):
             build_cmd.append(self.pre_deb_build)
         build_cmd += [
             'cp -f /bin/true /usr/bin/debsign',
-            'debuild --no-lintian -b',
+            'HOME=/root/ debuild --no-lintian -b',
             'cp -v ../*_*.changes ../*_*.deb /results/',
         ]
         return build_cmd
