@@ -25,20 +25,6 @@ class Tool(object):
         print(msg)
 
     @staticmethod
-    def check_api():
-        output = check_output(('docker', 'version'))
-        params = dict(kv.split(': ', 1) for kv in output.splitlines())
-        if not Tool.version(params.get('Client API version', '0')) >= (1, 10):
-            Tool.panic('please update your docker client')
-        if not 'Server API version' in params:
-            Tool.panic(
-                'please ensure docker daemon is running,\n'
-                'run `export DOCKER_HOST=tcp://dockerhost:port` if needed'
-            )
-        if not Tool.version(params.get('Server API version', '0')) >= (1, 10):
-            Tool.panic('please update your docker server')
-
-    @staticmethod
     def build_deps():
         with open('debian/control') as fp:
             content = fp.read()
@@ -46,7 +32,7 @@ class Tool(object):
         if m is None:
             Tool.log('no build dependencies found')
             return []
-        build_deps_raw = re.split(r'(?:\s*,\s*)+', m.group(1), re.S)
+        build_deps_raw = re.split(r'(?:\s*,\s*)+', m.group(1))
         result = []
         for dep in build_deps_raw:
             m = re.match(r'^\s*([a-zA-Z0-9_\-]+)\s*(?:[(][^\)]+[)])?\s*$', dep)
@@ -59,11 +45,14 @@ class Tool(object):
     def generate_dockerfile(self):
         if os.path.exists('Dockerfile'):
             self.panic('Dockerfile already exists, can\'t continue')
+        if os.path.exists('.dockerignore'):
+            self.panic('.dockerignore already exists, can\'t continue')
+
         lines = [
             'FROM ' + self.base_image,
-            'ENV DEBIAN_FRONTEND noninteractive',
-            'RUN apt-get update && apt-get install -yV devscripts debhelper',
-            'RUN apt-get update && apt-get install -yV {}'.format(
+            'RUN sed -i -e "s/archive.ubuntu.com/mirror.yandex.ru/g" /etc/apt/sources.list',
+            'RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -qq devscripts debhelper',
+            'RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -qyV {}'.format(
                 ' '.join(sorted(self.build_deps()))
             ),
             'ADD . /root/source',
@@ -71,6 +60,14 @@ class Tool(object):
         ]
         with open('Dockerfile', 'w') as fp:
             fp.write('\n'.join(lines) + '\n')
+        if os.path.exists('.gitignore'):
+            ignore_base = open('.gitignore').read().strip().splitlines()
+        else:
+            ignore_base = []
+        ignore_base.append('.git')
+        with open('.dockerignore', 'w') as fp:
+            fp.write('\n'.join(ignore_base))
+            fp.write('\n')
 
     def build_cmd(self):
         build_cmd = [
@@ -80,7 +77,7 @@ class Tool(object):
             build_cmd.append(self.pre_deb_build)
         build_cmd += [
             'cp -f /bin/true /usr/bin/debsign',
-            'HOME=/root/ debuild --no-lintian -b',
+            'debuild --no-lintian -b',
             'cp -v ../*_*.changes ../*_*.deb /results/',
         ]
         return build_cmd
@@ -120,7 +117,6 @@ class Tool(object):
 
     def run(self):
         container_tag = image_tag = 'demo'
-        self.check_api()
 
         # build env preparation
         self.generate_dockerfile()
@@ -128,6 +124,8 @@ class Tool(object):
             check_call(('docker', 'build', '-t', image_tag, '.'))
         finally:
             os.remove('Dockerfile')
+            if os.path.exists('.dockerignore'):
+                os.remove('.dockerignore')
 
         if 0 == call(('docker', 'rm', '-f', container_tag), stderr=PIPE):
             self.log('container "{}" from previous build removed', container_tag)
