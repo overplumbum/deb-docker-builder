@@ -53,7 +53,7 @@ class Tool(object):
         lines = [
             'FROM ' + self.base_image,
             'RUN sed -i -e "s/archive.ubuntu.com/mirror.yandex.ru/g" /etc/apt/sources.list',
-            'RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -qq devscripts debhelper',
+            'RUN apt-get update -qq && export DEBIAN_FRONTEND=noninteractive && apt-get upgrade -qq && apt-get install -qq devscripts debhelper',
             'RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -qyV {}'.format(
                 ' '.join(sorted(self.build_deps()))
             ),
