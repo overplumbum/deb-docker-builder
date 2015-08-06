@@ -35,7 +35,9 @@ class Tool(object):
         build_deps_raw = re.split(r'(?:\s*,\s*)+', m.group(1))
         result = []
         for dep in build_deps_raw:
-            m = re.match(r'^\s*([a-zA-Z0-9_\-]+)\s*(?:[(][^\)]+[)])?\s*$', dep)
+            if dep == '':
+                continue
+            m = re.match(r'^\s*([a-zA-Z0-9_\-.]+)\s*(?:[(][^\)]+[)])?\s*$', dep)
             if m is None:
                 Tool.panic('failed to parse build dependencies entry: "{}"', dep)
             pkg = m.group(1)
