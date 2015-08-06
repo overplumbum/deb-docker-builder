@@ -110,7 +110,7 @@ class Tool(object):
         parser.add_argument(
             '--base-image',
             help='base container image',
-            default='ubuntu:12.04',
+            default='debian:jessie',
         )
         args = parser.parse_args()
 
